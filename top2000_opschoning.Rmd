@@ -1,0 +1,168 @@
+---
+title: "opschoning"
+author: "Justin Verhulst"
+date: "2022-12-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#INLADEN LIBRARIES
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+library(janitor)
+library(zoo)
+library(readxl)
+library(gridExtra)
+library(rlang)
+library(dplyr)
+
+#To-do:
+# nog niet alle artiesten hebben gender (met name de duo's); vul dit handmatig aan
+# factor levels aangeven moet efficienter kunnen
+# misschien zijn er nog andere interessante data om de dataset mee aan te vullen?
+
+```
+
+#OPSCHONEN ENVIRONMENT, INLADEN DATASETS
+```{r}
+#Opschonen environment
+rm(list = ls()) #alles uit de environment
+
+#inladen datasets
+top_2000_totaal <- read_excel("221222 top2000 database 2022.xlsx", sheet = 3) #bron: https://twitter.com/top2000database
+geslacht_dataset <- read.csv("Gender_Dataset_1.7.csv", sep = ",") #bron: https://makemusicequal.chartmetric.com/pronoun-gender-database
+```
+
+#Benodigde data voor opschoning
+```{r}
+#enkele artiesten missen "the", maak dataset waarvoor dat zo is:
+artist_the <- tolower(c("Who", "Teskey Brothers", "Temper Trap", "Scene", "Rolling Stones", "Prodigy", "Pointer Sisters", "Opposites", "Moody Blues", "Kinks", "Human League", "Hollies", "Doors", "Cure", "Common Linnets", "Chemical Brothers", "Chainsmokers & Coldplay", "Cats", "Buoys", "Boxer Rebellion", "Blue Isle", "Black Keys", "Black Eyed Peas", "Black Crowes", "Beatles", "Beach Boys", "Bangles", "B-52's", "Amazing Stroopwafels", "Animals", "Alan Parsons Project", "Jimi Hendrix Experience", "Monkees", "Offspring", "Police", "Proclaimers", "Righteous Brothers", "Smashing Pumpkins", "Smiths", "Sugarhill Gang", "Stranglers", "Temptations", "War On Drugs", "Waterboys", "Weather Girls", "White Stripes", "Blue Nile", "three degrees"))
+artist_de <- c("poema's", "bankzitters")
+
+#Handmatig lijst maken met vrouwelijke en mixed artiesten
+artist_mixed <- tolower(c("5000 Volts","ABBA","Arcade Fire","Alphaville","Ashford & Simpson","Band Aid","Blue Mink",
+                  "Boys Town Gang","Brotherhood of Man","Bucks Fizz", "BZN", "Captain & Tennille","Champaign", "Chicken Shack",
+                  "Cirque du Soleil", "Clannad", "Cock Robin", "Crash Test Dummies", "Crystal Fighters", "Curved Air",
+                  "Darts", "DeBarge", "Edward Sharpe & The Magnetic Zeros", "Enigma", "Fairground Attraction", 
+                  "Fairport Convention", "Faithless", "Gare Du Nord", "Gladys Knight & The Pips", "Goombay Dance Band", 
+                  "Gossip", "Gruppo Sportivo", "Guano Apes", "Hues Corporation","Hunters", "Incognito","Indeep",
+                  "Jefferson Airplane", "Katrina & The Waves", "KC & The Sunshine Band", "Krezip", "Latin Quarter", "Los Angeles",
+                  "LTD", "Lucifer", "Mac & Katie Kissoon", "Magna Carta", "Måneskin", "Marshall Hain", "Matia Bazar", "Matt Bianco",
+                  "Mecano", "Miami Sound Machine", "Middle Of The Road", "Mocedades", "Mother's Finest", "Mouth & MacNeal",
+                  "New Order", "Ocean", "Portishead", "Propaganda", "Pulp", "Pussycat", "Rose Royce", "Santa Esmeralda",
+                  "Shakatak", "Shocking Blue", "Sixpence None The Richer", "Skunk Anansie", "Sonny & Cher", "Spargo",
+                  "Starland Vocal Band", "Steeleye Span", "T'Pau", "Talking Heads", "The 5th Dimension", "The Dandy Warhols",
+                  "The Gathering", "The Korgis", "The Mamas & The Papas", "The Mo", "The New Seekers", "The Osmonds", "The Shirts",
+                  "Total Touch", "Tumbleweeds", "Vaya Con Dios", "Visage", "Wings", "Womack & Womack", "Yarbrough & Peoples", 
+                  "Yazoo"))
+
+artist_woman <- c("all saints", "atomic kitten", "baccara", "bananarama", "caro emerald", "diana ross & the supremes", 
+                  "first aid kit", "lace", "maan", "mai tai", "maywood", "melanie", "nicole", "sister sledge", "solid harmonie", 
+                  "the ronettes", "the supremes", "the three degrees", "the weather girls")
+```
+
+#OPSCHONING TOP 2000 TOTAAL DATASET IN DYPLR PIPE
+```{r}
+top_2000_totaal <- top_2000_totaal %>%
+  
+  #Kolomnamen, artiesten en nummers lowercase voor de vergelijking
+  rename_all(tolower) %>% 
+  mutate(artiest = tolower(artiest)) %>%   
+  
+  #datatype aanpassen (jaar wordt numeriek en editieplek wordt factor (= ordinal) 
+  mutate(across(3, as.numeric),
+         across(c(4:27), as.factor),
+  
+  #Artiesten missen "the" of "de" - vul aan. 
+         artiest = case_when(artiest %in% artist_the ~ paste("the", artiest), TRUE ~ artiest),
+         artiest = case_when(artiest %in% artist_de ~ paste("de", artiest), TRUE ~ artiest)
+         )
+
+#factor levels in reverse zodat 1 boven begint, dit is logischer voor de plot (kan waarschijnlijk efficienter in dplyr?)
+top_2000_totaal$'2022' <- factor(top_2000_totaal$'2022', levels = rev(c(1:2000)))
+top_2000_totaal$'2021' <- factor(top_2000_totaal$'2021', levels = rev(c(1:2000)))
+top_2000_totaal$'2020' <- factor(top_2000_totaal$'2020', levels = rev(c(1:2000)))
+top_2000_totaal$'2019' <- factor(top_2000_totaal$'2019', levels = rev(c(1:2000)))
+top_2000_totaal$'2018' <- factor(top_2000_totaal$'2018', levels = rev(c(1:2000)))
+top_2000_totaal$'2017' <- factor(top_2000_totaal$'2017', levels = rev(c(1:2000)))
+top_2000_totaal$'2016' <- factor(top_2000_totaal$'2016', levels = rev(c(1:2000)))
+top_2000_totaal$'2015' <- factor(top_2000_totaal$'2015', levels = rev(c(1:2000)))
+top_2000_totaal$'2014' <- factor(top_2000_totaal$'2014', levels = rev(c(1:2000)))
+top_2000_totaal$'2013' <- factor(top_2000_totaal$'2013', levels = rev(c(1:2000)))
+top_2000_totaal$'2012' <- factor(top_2000_totaal$'2012', levels = rev(c(1:2000)))
+top_2000_totaal$'2011' <- factor(top_2000_totaal$'2011', levels = rev(c(1:2000)))
+top_2000_totaal$'2010' <- factor(top_2000_totaal$'2010', levels = rev(c(1:2000)))
+top_2000_totaal$'2009' <- factor(top_2000_totaal$'2009', levels = rev(c(1:2000)))
+top_2000_totaal$'2008' <- factor(top_2000_totaal$'2008', levels = rev(c(1:2000)))
+top_2000_totaal$'2007' <- factor(top_2000_totaal$'2007', levels = rev(c(1:2000)))
+top_2000_totaal$'2006' <- factor(top_2000_totaal$'2006', levels = rev(c(1:2000)))
+top_2000_totaal$'2005' <- factor(top_2000_totaal$'2005', levels = rev(c(1:2000)))
+top_2000_totaal$'2004' <- factor(top_2000_totaal$'2004', levels = rev(c(1:2000)))
+top_2000_totaal$'2003' <- factor(top_2000_totaal$'2003', levels = rev(c(1:2000)))
+top_2000_totaal$'2002' <- factor(top_2000_totaal$'2002', levels = rev(c(1:2000)))
+top_2000_totaal$'2001' <- factor(top_2000_totaal$'2001', levels = rev(c(1:2000)))
+top_2000_totaal$'2000' <- factor(top_2000_totaal$'2000', levels = rev(c(1:2000)))
+top_2000_totaal$'1999' <- factor(top_2000_totaal$'1999', levels = rev(c(1:2000)))
+
+```
+
+#OPSCHONING GESLACHT DATASET IN DYPLR PIPE
+```{r}
+geslacht_dataset <- geslacht_dataset %>%
+  mutate_all(tolower) %>%     #lowercase voor de vergelijking
+  rename(artiest = name)%>%   #aanpassen kolomnaam voor de vergelijking
+  
+  #vul gender aan op basis van pronoun
+  mutate(gender = ifelse(pronoun == "he/him", "male", gender),
+         gender = ifelse(pronoun == "she/her", "female", gender),
+  
+  #fix genders die niet kloppen              
+         gender = ifelse(artiest == "placebo", "male", gender), 
+         gender = ifelse(artiest == "sam smith", "male", gender), 
+         
+  #Naam artiesten fixen en duplicates verwijderen        
+         artiest = replace(artiest, artiest == "andre hazes", "andré hazes"),
+         artiest = replace(artiest, duplicated(artiest), NA)
+         ) %>% 
+  
+  #Niet-relevante kolommen verwijderen
+  select(-chartmetric_id) %>%
+
+  #Sommige artiesten staan niet in de dataset, vul handmatig aan
+  add_row(artiest = "3JS", artist_country = "nl", pronoun = "he/him", gender = "male")%>%
+  add_row(artiest = "Armin van Buuren ft. Davina Michelle", artist_country = "nl", pronoun = "they/them", 
+          gender = "mixed") 
+```
+
+#GESLACHT DATASET EN TOP 2000 DATASET KOPPELEN EN VERDER OPSCHONEN
+```{r}
+#koppel gender dataset aan top 2000 dataset
+top_2000_totaal <- merge(top_2000_totaal,geslacht_dataset, by = "artiest", all.x = TRUE)
+
+#nog wat opschoning
+top_2000_totaal <- top_2000_totaal %>%
+  
+  #Vul missende genders aan. Eerst alles man doen en dan handmatig bijwerken. 
+  mutate(gender = ifelse(gender == "", "male", gender),  
+         gender = ifelse(artiest %in% artist_mixed, "mixed", gender),
+         gender = ifelse(artiest %in% artist_woman, "female", gender)) 
+
+#Maak top_2000_totaal long zodat je er beter figuren mee kan maken
+top_2000_totaal_long <- top_2000_totaal %>% 
+  pivot_longer(
+    cols = c(4:27),
+    names_to = "editie",
+    values_to = "positie"
+)
+```
+
+#Opslaan datasets
+```{r}
+saveRDS(top_2000_totaal_long, 'top_2000_totaal_long.rds')
+```

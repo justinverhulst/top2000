@@ -1,0 +1,261 @@
+---
+title: "top2000_analyses"
+author: "Justin Verhulst"
+date: "2023-01-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Opschonen environment, inladen datasets
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+library(janitor)
+library(zoo)
+library(readxl)
+library(gridExtra)
+library(rlang)
+library(dplyr)
+
+#Opschonen environment
+rm(list = ls()) #alles uit de environment
+
+#sluit device af zodat plots weer gerund kunnen worden
+#dev.off()
+
+#Ideeen voor analyses en to-do
+# Gender plaatjes fixen
+# Zijn solo artiesten tegenwoordig populairder? -- 
+# Wat zijn de populairste genres per decennium?
+# Wat is de afkomst van artiesten?
+# Zijn artiesten die overleden zijn tijdelijk populairder? - Michael Jackson, David Bowie, George
+
+
+#probeer ook wat nieuwe graphs, bijv. treemap. Check boek. Maar eerst ook de standaard grafiekjes. Ook bar charts en gestapeld. 
+
+#inladen dataset
+top_2000_totaal_long <- readRDS("top_2000_totaal_long.rds")
+```
+
+
+#Plot 1: Artiest en nummer over tijd
+```{r}
+p_nummer <- top_2000_totaal_long %>% 
+  
+  #filter op artiest en nummer
+  filter(artiest == "marco borsato", nummer == "Dromen Zijn Bedrog") %>%
+  
+  #neem de edities waarin het nummer niet voorkwam niet mee in de plot
+  drop_na(positie) %>% 
+  
+  #plotten
+  ggplot(aes(x = editie, y = positie, group = 1)) + 
+  
+  #maak lijndiagram met bollen per jaar. 
+  geom_line() + 
+  geom_point() + 
+  
+  #Voeg het thema toe
+  theme_bw()+
+  
+  #titels geven (check of ik dit nog dynamisch kan maken...)
+  labs(x = "", y = "", title = "Positie van nummer X van artiest X in de Top 2000 (maak dynamisch)") +
+  
+  #Opmaak verder fixen
+  theme(
+  axis.ticks = element_blank(),
+  plot.title = element_text(hjust = 0.5),
+  #axis.text = element_text(size=20)
+  plot.margin = margin(1.5,1.5,1.5,1.5, "cm"),
+  panel.grid.major = element_blank()) +
+  
+  #schoon de x en y as wat op (check of breaks efficienter kan)
+  scale_y_discrete(drop = FALSE, 
+                   breaks = c(1, 250,500,750,1000,1250,1500,1750, 2000), 
+                   labels = function(x) paste0("# ",x)) +
+  scale_x_discrete(breaks = c(2000,2002,2004,2006,2008,2010,2012,2014,2016,2018,2020,2022))
+```
+
+#Plot 2: Zijn de liedjes van Marco Borsato minder populair geworden?
+```{r}
+#maak nieuwe kolom met uitgelichte nummers
+top_2000_totaal_long <- top_2000_totaal_long %>% mutate(uitgelicht = ifelse(nummer %in% c("Dochters", "Rood","Afscheid Nemen Bestaat Niet", "Zij", "Dromen Zijn Bedrog"), nummer, "overig"))
+
+#De uitgelichte kolom moet factor zijn (kijk of je dit wat efficienter kan schrijven)
+top_2000_totaal_long$uitgelicht <- factor(top_2000_totaal_long$uitgelicht, levels=c("Dochters", "Rood","Afscheid Nemen Bestaat Niet", "Zij", "Dromen Zijn Bedrog", "overig"), labels=c("Dochters", "Rood","Afscheid Nemen Bestaat Niet", "Zij", "Dromen Zijn Bedrog", "Overig"))
+
+p_marco <- top_2000_totaal_long %>% 
+  #filter op artiest, in dit geval Marco Borsato
+  filter(artiest == "marco borsato")%>%
+  
+  #neem de edities met NA's niet mee
+  drop_na(positie) %>% 
+  
+  #plotten
+  ggplot(aes(x = editie, y = positie)) + 
+  
+  #maak lijndiagram. 
+  geom_line(aes(
+    alpha  = uitgelicht,
+    group = nummer,
+                color = uitgelicht),
+                size = 1.1) + 
+  
+  #Voeg het thema toe
+  theme_bw()+
+  
+  #titels geven
+  labs(x = "", y = "", title = "Marco Borsato zakt in Top 2000") +
+  
+  #Opmaak verder fixen
+  theme(
+  axis.ticks = element_blank(),
+  plot.title = element_text(hjust = 0.5),
+  plot.margin = margin(1.5,1.5,1.5,1.5, "cm"),
+  panel.grid.major = element_blank(),
+  legend.position="bottom",
+  legend.title=element_blank()) +
+  scale_color_manual(values=c("blue", "red","green", "orange","purple", "black")) +
+  scale_alpha_manual(values=c(1,1,1,1,1,0.1)) +
+  
+  #schoon de x en y as wat op (check of breaks efficienter kan)
+  scale_y_discrete(drop = FALSE, 
+                   breaks = c(1, 250,500,750,1000,1250,1500,1750, 2000), 
+                   labels = function(x) paste0("# ",x)) +
+  scale_x_discrete(breaks = c(2000,2002,2004,2006,2008,2010,2012,2014,2016,2018,2020,2022))
+```
+
+```{r}
+#Hofleveranciers top2000 in editie 2022
+hofleveranciers <- top_2000_totaal_long %>%
+  filter(editie == 2022) %>%
+  filter (as.numeric(positie) < 2001) %>%
+  count(artiest) %>% top_n(14, n) %>% arrange(desc(n))
+
+#hieronder werkt nog niet helemaal lekker, fix het. 
+
+#gender in editie 2022
+top_2000_totaal_long %>%
+  filter(editie == 2022) %>%
+  filter (as.numeric(positie) < 2001) %>%
+  count(gender)
+
+#gender in de top 100 per editie
+top_2000_totaal_long %>%
+  group_by(editie) %>%
+  filter (as.numeric(positie) < 100) %>%
+  count(gender)
+
+#maak ggplot van gender percentages over de jaren heen (heel de lijst) #doet het niet meer.
+p_gender_2000 <- top_2000_totaal_long %>%
+
+  #editie selectie
+  group_by(editie) %>%
+
+  #filter top 100 of alle liedjes
+  filter(as.numeric(positie) < 2000) %>%
+  count(gender) %>%
+
+  #procent kolom
+  mutate(procent = (n/2000)*100) %>%
+  ggplot(aes(x = as.numeric(editie), y=procent)) +
+  geom_area(aes(y = procent, group = gender, fill = gender), size=1.1) +
+
+
+  #opmaak fixen
+  theme(legend.position = "none",
+        legend.title = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        plot.title=element_text(hjust = 0.5)) +
+
+  #Titels
+  labs(title = "Top 2000 gedomineerd door mannen") +
+  scale_x_continuous(breaks = 2000, 2010, 2020) #werkt nog niet helemaal, check!!
+  
+  #x en y as opmaken -- lukt niet want factor?! kijk of ik kan converteren. Kan beter continuous gebruiken..
+  #scale_x_continuous(expand = c(0, 0), limits = c(1999, 2022), breaks = seq(1999, 2022, by = 2))
+
+
+  
+
+# p_gender_2000 <- top_2000_totaal_long %>%
+#   group_by(editie) %>%
+#   filter(as.numeric(positie) < 2000) %>%
+#   count(gender) %>%
+#   mutate(procent = (n/2000)*100)%>%
+#   ggplot(aes(x = editie, y=procent)) +
+#   geom_area(aes(y = procent, group = gender, fill = gender), size=1.1) +
+#   scale_x_continuous(expand = c(0, 0), limits = c(1999, 2022), breaks = seq(1999, 2022, by = 2)) +
+#   theme(legend.position = "none",legend.title = element_blank(),panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.ticks.x = element_blank(),axis.ticks.y = element_blank(), plot.title=element_text(size=25, hjust = 0.5), axis.text=element_text(size=10)) +
+#   scale_y_continuous(labels = function(x) paste0(x, "%"),expand = c(0, 0),limits = c(0, 100), breaks = seq(0, 100, by = 20)) +
+#   labs(x = "", y = "", title = "Top 2000 gedomineerd door mannen") +
+#   scale_fill_discrete(labels=c('Vrouw', 'Man', 'Gemixt',"Geen data")) +
+#   annotate("text", x = 2002, y = 95, label = "Vrouw", color = "white", size = 17) +
+#   annotate("text", x = 2001.5, y = 55, label = "Man", color = "white", size = 17) +
+#   annotate("text", x = 2001, y = 21.5, label = "Mix", color = "white", size = 11) +
+#   annotate("text", x = 2003, y = 10, label = "Geen data", color = "white", size = 17)
+# 
+# p_gender_2000
+
+```
+
+```{r}
+#hieronder werkt nog niet helemaal lekker, fix het. 
+
+# #maak ggplot van gender percentages over de jaren heen (enkel top 100)
+# p_gender_100 <- top_2000_totaal_long %>%
+#   group_by(editie) %>%
+#   filter (positie < 101) %>%
+#   count(gender) %>%
+#   mutate(procent = (n/100)*100)%>%
+#   ggplot(aes(x = editie, y=procent)) +
+#   geom_area(aes(y = procent, group = gender, fill = gender), size=1.1) +
+#   scale_x_continuous(expand = c(0, 0), limits = c(1999, 2022), breaks = seq(1999, 2024, by = 2)) +
+#   theme(axis.text=element_text(size=12), legend.position = "none", legend.title = element_blank(), plot.title = element_text(hjust = 0.5, size = 22),panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.ticks.x = element_blank(),axis.ticks.y = element_blank()) +
+#   scale_y_continuous(labels = function(x) paste0(x, "%"),expand = c(0, 0),limits = c(0, 100), breaks = seq(0, 100, by = 20)) +
+#   labs(x = "", y = "", title = "Top 100 van de Top 2000 gedomineerd door mannen") +
+#   scale_fill_discrete(labels=c('Vrouw', 'Man', 'Gemixt',"Geen data")) +
+#    scale_fill_discrete(labels=c('Vrouw', 'Man', 'Gemixt',"Geen data")) +
+#   annotate("text", x = 2000.3, y = 97.5, label = "Vrouw", color = "white", size = 10) +
+#   annotate("text", x = 2000, y = 55, label = "Man", color = "white", size = 10) +
+#   annotate("text", x = 2000, y = 12, label = "Mix", color = "white", size = 10) +
+#   annotate("text", x = 2001, y = 4, label = "Geen data", color = "white", size = 10)
+#   
+# top_2000_totaal_long %>%
+#   group_by(editie) %>%
+#   filter (positie < 2000) %>%
+#   count(gender) %>%
+
+#selecteer unieke artiesten
+# top_2000_totaal_long %>% select(artiest, pronoun, gender, is_band)  
+# x <- distinct(x, artiest, .keep_all = TRUE) 
+
+```
+
+#plots exporteren (werkt nog niet echt goed)
+```{r}
+
+pdf("top_2000_plaatjes.pdf",         # File name
+    width = 8, height = 7, # Width and height in inches
+    bg = "white",          # Background color    
+    paper = "A4")          # Paper size
+
+# Hier de plots die je in de PDF wilt
+
+grid.table(hofleveranciers)
+p_nummer
+p_marco
+p_gender_2000
+#p_gender_100
+
+# Closing the graphical device
+dev.off() 
+
+```
